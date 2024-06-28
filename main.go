@@ -376,7 +376,7 @@ func main() {
 	})
 
 	r.GET("/control", handleWebSocket)
-	dist, err := fs.Sub(staticFS, "cine-fox-web/dist")
+	dist, err := fs.Sub(staticFS, "web/dist")
 	if err != nil {
 		log.Println("dist file server error")
 		return

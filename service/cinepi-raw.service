@@ -1,0 +1,13 @@
+[Unit]
+Description=CinePi Raw Service
+After=multi-user.target
+
+[Service]
+Type=idle
+ExecStart=/home/pi/run-raw.sh
+User=pi
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target

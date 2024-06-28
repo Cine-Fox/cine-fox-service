@@ -1,0 +1,14 @@
+[Unit]
+Description=Cine Fox Service
+After=multi-user.target
+
+[Service]
+Type=idle
+ExecStart=/home/pi/cine-fox
+User=root
+Group=root
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target

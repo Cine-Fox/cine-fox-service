@@ -6,6 +6,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -360,7 +361,15 @@ func (c *Connection) WriteMessage(message []byte) {
 var staticFS embed.FS
 
 func main() {
-	go i2c.StartListenCFEHat()
+	cfeHat := flag.Bool("cfe-hat", true, "enable or disable cfe hat")
+
+	flag.Parse()
+
+	fmt.Println("--cfe-hat:", *cfeHat)
+
+	if *cfeHat {
+		go i2c.StartListenCFEHat()
+	}
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()

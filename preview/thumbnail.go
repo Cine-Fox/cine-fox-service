@@ -1,155 +1,101 @@
 package preview
 
 import (
-	"bytes"
-	"context"
 	"fmt"
+	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
 	"image/jpeg"
 	"log"
-	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"time"
-
-	"github.com/disintegration/imaging"
-	"github.com/gorilla/websocket"
+	"strings"
 )
 
 const (
 	mediaDir = "/media/RAW"
 )
 
-var upGrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
-type Connection struct {
-	conn       *websocket.Conn
-	writeQueue chan []byte
-}
-
-func (c *Connection) writePump(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			fmt.Println("send system exit")
-			return
-		case message := <-c.writeQueue:
-			err := c.conn.WriteMessage(websocket.BinaryMessage, message)
-			if err != nil {
-				log.Println("Write error:", err)
-				break
-			}
-		}
-	}
-}
-
-func (c *Connection) WriteMessage(message []byte) {
-	c.writeQueue <- message
-}
-
 func ThumbnailContext(c *gin.Context) {
-	conn, err := upGrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		log.Println("Upgrade error:", err)
-		return
-	}
-
-	wc := &Connection{
-		conn:       conn,
-		writeQueue: make(chan []byte, 256), // buffered channel
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go wc.writePump(ctx)
-
-	defer func() {
-		wc.conn.Close()
-	}()
 
 	inputFolder := c.Param("folder")
 
-	go sendImage(mediaDir+"/"+inputFolder, wc, ctx)
+	dirPath := mediaDir + "/" + inputFolder + "/thumbnails"
 
-	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			cancel()
-			log.Println("Read error:", err)
-			break
-		}
-		log.Printf("Received message: %s\n", message)
-
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		generateImage(mediaDir + "/" + inputFolder)
 	}
 
 }
 
-func getDNGFiles(folder string) ([]string, error) {
-	var dngFiles []string
+func generateImage(inputFolder string) {
+	thumbnailsFolder := filepath.Join(inputFolder, "thumbnails")
+	err := os.MkdirAll(thumbnailsFolder, 0755)
+	if err != nil {
+		log.Printf("Error creating thumbnails directory: %v", err)
+		return
+	}
 
-	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(inputFolder, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(info.Name()) == ".dng" {
-			dngFiles = append(dngFiles, path)
+			err := processDNGFile(path, thumbnailsFolder)
+			if err != nil {
+				log.Printf("Error processing file %s: %v", path, err)
+			}
 		}
 		return nil
 	})
 
 	if err != nil {
-		return nil, err
+		log.Printf("Error walking through folder %s: %v", inputFolder, err)
 	}
 
-	return dngFiles, nil
+	generateMP4(thumbnailsFolder)
 }
 
-func sendImage(inputFolder string, wc *Connection, ctx context.Context) {
-	dngFiles, err := getDNGFiles(inputFolder)
+func processDNGFile(inputFile string, thumbnailsFolder string) error {
+	file, err := os.Open(inputFile)
 	if err != nil {
-		log.Printf("Error reading DNG files: %v", err)
+		return fmt.Errorf("error opening file %s: %v", inputFile, err)
+	}
+	defer file.Close()
+
+	img, err := imaging.Decode(file)
+	if err != nil {
+		return fmt.Errorf("error decoding image %s: %v", inputFile, err)
 	}
 
-	for _, inputFile := range dngFiles {
-		select {
-		case <-ctx.Done():
-			fmt.Println("send image exit")
-			return
-		default:
-			file, err := os.Open(inputFile)
-			if err != nil {
-				log.Printf("Error opening file %s: %v", inputFile, err)
-				continue
-			}
-			defer file.Close()
+	thumbnail := imaging.Thumbnail(img, 640, 360, imaging.Lanczos)
 
-			img, err := imaging.Decode(file)
-			if err != nil {
-				log.Printf("Error decoding image %s: %v", inputFile, err)
-				continue
-			}
-
-			thumbnail := imaging.Thumbnail(img, 640, 360, imaging.Lanczos)
-
-			buf := new(bytes.Buffer)
-
-			o := &jpeg.Options{Quality: 50}
-
-			err = jpeg.Encode(buf, thumbnail, o)
-			if err != nil {
-				log.Printf("Error encoding thumbnail %s: %v", inputFile, err)
-				continue
-			}
-
-			wc.WriteMessage(buf.Bytes())
-
-			time.Sleep(time.Second / 24)
-		}
+	outputFilename := filepath.Join(thumbnailsFolder, strings.TrimSuffix(filepath.Base(inputFile), ".dng")+".jpg")
+	outFile, err := os.Create(outputFilename)
+	if err != nil {
+		return fmt.Errorf("error creating file %s: %v", outputFilename, err)
 	}
+	defer outFile.Close()
+
+	jpegOptions := &jpeg.Options{Quality: 70}
+	err = jpeg.Encode(outFile, thumbnail, jpegOptions)
+	if err != nil {
+		return fmt.Errorf("error encoding thumbnail %s: %v", inputFile, err)
+	}
+
+	return nil
+}
+
+func generateMP4(inputFolder string) {
+	cmd := exec.Command("ffmpeg", "-framerate", "24", "-pattern_type", "glob", "-i", inputFolder+"/*.jpg", "-c:v", "libxvid", "-b:v", "2M", inputFolder+"/output.mp4")
+
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		fmt.Println("fail:", err)
+		return
+	}
+
+	fmt.Println("output:")
+	fmt.Println(string(output))
 }

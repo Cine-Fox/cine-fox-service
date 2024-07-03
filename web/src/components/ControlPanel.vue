@@ -3,7 +3,7 @@ import { onBeforeUnmount, ref, onMounted, computed } from "vue";
 import { showNotify } from "vant";
 
 let websocket = null;
-let previewWebsocket = null;
+// let previewWebsocket = null;
 let host = window.location.hostname;
 const isConnected = ref(false);
 const active = ref(-1);
@@ -312,56 +312,56 @@ const startWebSocket = () => {
   }
 };
 
-const wsPreviewOnmessage = (message) => {
-  const blob = new Blob([message.data], { type: 'image/jpeg' });
-  const URL = window.URL || window.webkitURL;
-  const img = new Image();
-  const canvas = document.getElementById('canvas');
-  const g = canvas.getContext('2d');
-  img.onload = function () {
-    const { width } = img;
-    const { height } = img;
-    canvas.width = width;
-    canvas.height = height;
-    g.drawImage(img, 0, 0, width, height);
-  };
-  const u = URL.createObjectURL(blob);
-  img.src = u;
-};
+// const wsPreviewOnmessage = (message) => {
+//   const blob = new Blob([message.data], { type: 'image/jpeg' });
+//   const URL = window.URL || window.webkitURL;
+//   const img = new Image();
+//   const canvas = document.getElementById('canvas');
+//   const g = canvas.getContext('2d');
+//   img.onload = function () {
+//     const { width } = img;
+//     const { height } = img;
+//     canvas.width = width;
+//     canvas.height = height;
+//     g.drawImage(img, 0, 0, width, height);
+//   };
+//   const u = URL.createObjectURL(blob);
+//   img.src = u;
+// };
 
-const startPreviewWebSocket = () => {
-  if ("WebSocket" in window) {
-    previewWebsocket = new WebSocket(`ws://${host}:5678/preview/CINEPI_24-07-02_1712_C00000`);
-    previewWebsocket.onmessage = wsPreviewOnmessage;
-    previewWebsocket.onclose = (e) => {
-
-    };
-    previewWebsocket.onopen = (e) => {
-
-    };
-  }
-};
+// const startPreviewWebSocket = () => {
+//   if ("WebSocket" in window) {
+//     previewWebsocket = new WebSocket(`ws://${host}:5678/preview/CINEPI_24-07-02_1712_C00000`);
+//     previewWebsocket.onmessage = wsPreviewOnmessage;
+//     previewWebsocket.onclose = (e) => {
+//
+//     };
+//     previewWebsocket.onopen = (e) => {
+//
+//     };
+//   }
+// };
 
 onMounted(() => {
   startWebSocket();
-  startPreviewWebSocket()
+  // startPreviewWebSocket()
 });
 
 onBeforeUnmount(() => {
   if (websocket !== null) {
     websocket.close();
   }
-  if (previewWebsocket !== null) {
-    previewWebsocket.close();
-  }
+  // if (previewWebsocket !== null) {
+  //   previewWebsocket.close();
+  // }
 });
 </script>
 
 <template>
-  <canvas
-      id="canvas"
-      style="display: inline-block;width:100%;height:100%"
-  />
+<!--  <canvas-->
+<!--      id="canvas"-->
+<!--      style="display: inline-block;width:100%;height:100%"-->
+<!--  />-->
   <van-dialog
     v-model:show="isShowDialog"
     title="Rename File"

@@ -312,56 +312,41 @@ const startWebSocket = () => {
   }
 };
 
-// const wsPreviewOnmessage = (message) => {
-//   const blob = new Blob([message.data], { type: 'image/jpeg' });
-//   const URL = window.URL || window.webkitURL;
-//   const img = new Image();
-//   const canvas = document.getElementById('canvas');
-//   const g = canvas.getContext('2d');
-//   img.onload = function () {
-//     const { width } = img;
-//     const { height } = img;
-//     canvas.width = width;
-//     canvas.height = height;
-//     g.drawImage(img, 0, 0, width, height);
-//   };
-//   const u = URL.createObjectURL(blob);
-//   img.src = u;
-// };
+const loadingVideo = ref(false)
 
-// const startPreviewWebSocket = () => {
-//   if ("WebSocket" in window) {
-//     previewWebsocket = new WebSocket(`ws://${host}:5678/preview/CINEPI_24-07-02_1712_C00000`);
-//     previewWebsocket.onmessage = wsPreviewOnmessage;
-//     previewWebsocket.onclose = (e) => {
-//
-//     };
-//     previewWebsocket.onopen = (e) => {
-//
-//     };
-//   }
-// };
+const generateThumbnail =async (folder)=> {
+  try {
+    loadingVideo.value = true
+    const response = await fetch(`http://${host}:5678/preview/${folder}`);
+    if (!response.ok) {
+      console.log('Network response was not ok');
+    }
+    const data = await response.json();
+    console.log(data)
+    loadingVideo.value = false
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  }
+}
 
 onMounted(() => {
   startWebSocket();
-  // startPreviewWebSocket()
 });
 
 onBeforeUnmount(() => {
   if (websocket !== null) {
     websocket.close();
   }
-  // if (previewWebsocket !== null) {
-  //   previewWebsocket.close();
-  // }
 });
 </script>
 
 <template>
-<!--  <canvas-->
-<!--      id="canvas"-->
-<!--      style="display: inline-block;width:100%;height:100%"-->
-<!--  />-->
+
+  <video controls v-if="!loadingVideo">
+    <source :src="`http://${host}:5678/video/CINEPI_24-07-04_1555_C00000`" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+
   <van-dialog
     v-model:show="isShowDialog"
     title="Rename File"
@@ -424,8 +409,14 @@ onBeforeUnmount(() => {
           <template #right-icon>
             <div class="fox-center">
               <van-icon
+                  size="5vh"
+                  style="color: var(--van-primary-color)"
+                  name="play-circle"
+                  @click="generateThumbnail(item)"
+              />
+              <van-icon
                 size="5vh"
-                style="color: var(--van-primary-color)"
+                style="margin-left: 10px; color: var(--van-primary-color)"
                 name="edit"
                 @click="openDialog(item)"
               />

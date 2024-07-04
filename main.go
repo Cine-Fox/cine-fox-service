@@ -13,6 +13,10 @@ import (
 	"net/http"
 )
 
+const (
+	mediaDir = "/media/RAW"
+)
+
 //go:embed web/dist
 var staticFS embed.FS
 
@@ -31,8 +35,8 @@ func main() {
 	r := gin.Default()
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
 			return
@@ -42,6 +46,7 @@ func main() {
 
 	r.GET("/control", control.ControllerContext)
 	r.GET("/preview/:folder", preview.ThumbnailContext)
+	r.GET("/video/:folder", preview.VideoContext)
 
 	dist, err := fs.Sub(staticFS, "web/dist")
 	if err != nil {

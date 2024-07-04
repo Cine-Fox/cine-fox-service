@@ -6,17 +6,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"image/jpeg"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const (
 	mediaDir = "/media/RAW"
 )
 
+var mutex = &sync.Mutex{}
+
 func ThumbnailContext(c *gin.Context) {
+
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	inputFolder := c.Param("folder")
 
@@ -26,6 +33,7 @@ func ThumbnailContext(c *gin.Context) {
 		generateImage(mediaDir + "/" + inputFolder)
 	}
 
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 func generateImage(inputFolder string) {
@@ -54,6 +62,11 @@ func generateImage(inputFolder string) {
 	}
 
 	generateMP4(thumbnailsFolder)
+
+	err = deleteFilesWithSuffix(thumbnailsFolder, ".jpg")
+	if err != nil {
+		fmt.Println("Error deleting files:", err)
+	}
 }
 
 func processDNGFile(inputFile string, thumbnailsFolder string) error {
@@ -98,4 +111,25 @@ func generateMP4(inputFolder string) {
 
 	fmt.Println("output:")
 	fmt.Println(string(output))
+}
+
+func deleteFilesWithSuffix(dirPath, suffix string) error {
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), suffix) {
+			err := os.Remove(path)
+			if err != nil {
+				return fmt.Errorf("error deleting file %s: %w", path, err)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("error walking the path %s: %w", dirPath, err)
+	}
+
+	return nil
 }

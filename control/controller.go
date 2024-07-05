@@ -172,13 +172,11 @@ func getFileNameList() []string {
 	if err != nil {
 		log.Println(err)
 	}
-	fmt.Println("files:", files)
 	for _, file := range files {
 		if !strings.Contains(file.Name(), mediaPrefix) {
 			fileNames = append(fileNames, file.Name())
 		}
 	}
-	fmt.Println("fileNames:", fileNames)
 	return fileNames
 }
 

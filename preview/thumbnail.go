@@ -1,29 +1,77 @@
 package preview
 
 import (
+	"context"
 	"fmt"
 	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"image/jpeg"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
+	"time"
 )
 
 const (
 	mediaDir = "/media/RAW"
 )
 
-var mutex = &sync.Mutex{}
+var upGrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+type Connection struct {
+	conn       *websocket.Conn
+	writeQueue chan []byte
+}
+
+func (c *Connection) writePump(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("send system exit")
+			return
+		case message := <-c.writeQueue:
+			err := c.conn.WriteMessage(websocket.BinaryMessage, message)
+			if err != nil {
+				log.Println("Write error:", err)
+				break
+			}
+		}
+	}
+}
+
+func (c *Connection) WriteMessage(message []byte) {
+	c.writeQueue <- message
+}
 
 func ThumbnailContext(c *gin.Context) {
 
-	mutex.Lock()
-	defer mutex.Unlock()
+	conn, err := upGrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Println("Upgrade error:", err)
+		return
+	}
+
+	wc := &Connection{
+		conn:       conn,
+		writeQueue: make(chan []byte, 256), // buffered channel
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go wc.writePump(ctx)
+
+	defer func() {
+		wc.conn.Close()
+	}()
 
 	inputFolder := c.Param("folder")
 
@@ -33,7 +81,10 @@ func ThumbnailContext(c *gin.Context) {
 		generateImage(mediaDir + "/" + inputFolder)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	sendImage(dirPath, wc, ctx)
+
+	cancel()
+
 }
 
 func generateImage(inputFolder string) {
@@ -59,13 +110,6 @@ func generateImage(inputFolder string) {
 
 	if err != nil {
 		log.Printf("Error walking through folder %s: %v", inputFolder, err)
-	}
-
-	generateMP4(thumbnailsFolder)
-
-	err = deleteFilesWithSuffix(thumbnailsFolder, ".jpg")
-	if err != nil {
-		fmt.Println("Error deleting files:", err)
 	}
 }
 
@@ -99,37 +143,29 @@ func processDNGFile(inputFile string, thumbnailsFolder string) error {
 	return nil
 }
 
-func generateMP4(inputFolder string) {
-	cmd := exec.Command("ffmpeg", "-framerate", "24", "-pattern_type", "glob", "-i", inputFolder+"/*.jpg", "-c:v", "libxvid", "-b:v", "2M", inputFolder+"/output.mp4")
-
-	output, err := cmd.CombinedOutput()
-
+func sendImage(inputFolder string, wc *Connection, ctx context.Context) {
+	files, err := os.ReadDir(inputFolder)
 	if err != nil {
-		fmt.Println("fail:", err)
+		fmt.Println(err)
 		return
 	}
 
-	fmt.Println("output:")
-	fmt.Println(string(output))
-}
-
-func deleteFilesWithSuffix(dirPath, suffix string) error {
-	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), suffix) {
-			err := os.Remove(path)
+	for _, inputFile := range files {
+		select {
+		case <-ctx.Done():
+			fmt.Println("send image exit")
+			return
+		default:
+			imagePath := filepath.Join(inputFolder, inputFile.Name())
+			file, err := os.ReadFile(imagePath)
 			if err != nil {
-				return fmt.Errorf("error deleting file %s: %w", path, err)
+				log.Printf("Error opening file %s: %v", inputFile, err)
+				continue
 			}
+
+			wc.WriteMessage(file)
+
+			time.Sleep(time.Second / 24)
 		}
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("error walking the path %s: %w", dirPath, err)
 	}
-
-	return nil
 }

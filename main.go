@@ -46,7 +46,6 @@ func main() {
 
 	r.GET("/control", control.ControllerContext)
 	r.GET("/preview/:folder", preview.ThumbnailContext)
-	r.GET("/video/:folder", preview.VideoContext)
 
 	dist, err := fs.Sub(staticFS, "web/dist")
 	if err != nil {

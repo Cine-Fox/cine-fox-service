@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import {
   Cell,
+  Overlay,
   Dialog,
   Circle,
   ConfigProvider,
@@ -23,6 +24,7 @@ import {
 import "vant/lib/index.css";
 
 createApp(App)
+  .use(Overlay)
   .use(Field)
   .use(CellGroup)
   .use(Dialog)

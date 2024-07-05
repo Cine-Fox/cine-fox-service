@@ -3,8 +3,9 @@ import { onBeforeUnmount, ref, onMounted, computed } from "vue";
 import { showNotify } from "vant";
 
 let websocket = null;
-// let previewWebsocket = null;
-let host = window.location.hostname;
+let previewWebsocket = null;
+let host = "192.168.3.74";
+// let host = window.location.hostname;
 const isConnected = ref(false);
 const active = ref(-1);
 const isShow = ref(false);
@@ -41,6 +42,8 @@ const redGainShow = computed(() => {
 const blueGainShow = computed(() => {
   return (blueGain.value / 10).toFixed(1);
 });
+const isShowCanvas = ref(false);
+const hasImg = ref(false);
 
 const fpsOptions = [
   { text: "8" },
@@ -312,22 +315,47 @@ const startWebSocket = () => {
   }
 };
 
-const loadingVideo = ref(false)
+const wsPreviewOnmessage = (message) => {
+  hasImg.value = true;
+  const blob = new Blob([message.data], { type: "image/jpeg" });
+  const URL = window.URL || window.webkitURL;
+  const img = new Image();
+  const canvas = document.getElementById("canvas");
+  const g = canvas.getContext("2d");
+  img.onload = function () {
+    const { width } = img;
+    const { height } = img;
+    canvas.width = width;
+    canvas.height = height;
+    g.drawImage(img, 0, 0, width, height);
+  };
+  const u = URL.createObjectURL(blob);
+  img.src = u;
+};
 
-const generateThumbnail =async (folder)=> {
-  try {
-    loadingVideo.value = true
-    const response = await fetch(`http://${host}:5678/preview/${folder}`);
-    if (!response.ok) {
-      console.log('Network response was not ok');
-    }
-    const data = await response.json();
-    console.log(data)
-    loadingVideo.value = false
-  } catch (error) {
-    console.error('Error fetching data:', error);
+const closePreview = () => {
+  if (previewWebsocket !== null) {
+    previewWebsocket.close();
   }
-}
+  isShowCanvas.value = false;
+};
+
+const startPreviewWebSocket = (file) => {
+  isShowCanvas.value = true;
+  showLeft.value = false;
+  hasImg.value = false;
+  if (previewWebsocket !== null) {
+    previewWebsocket.close();
+  }
+  if ("WebSocket" in window) {
+    previewWebsocket = new WebSocket(`ws://${host}:5678/preview/${file}`);
+    previewWebsocket.onmessage = wsPreviewOnmessage;
+    previewWebsocket.onclose = (e) => {
+      showNotify({ type: "success", message: "Preview finish!" });
+    };
+    previewWebsocket.onopen = (e) => {};
+  }
+};
 
 onMounted(() => {
   startWebSocket();
@@ -337,16 +365,35 @@ onBeforeUnmount(() => {
   if (websocket !== null) {
     websocket.close();
   }
+  if (previewWebsocket !== null) {
+    previewWebsocket.close();
+  }
 });
 </script>
 
 <template>
-
-  <video controls v-if="!loadingVideo">
-    <source :src="`http://${host}:5678/video/CINEPI_24-07-04_1555_C00000`" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
-
+  <van-overlay v-model:show="isShowCanvas" @click="closePreview" z-index="1999">
+    <div class="wrapper">
+      <div class="block">
+        <span
+          class="fox-font"
+          v-if="!hasImg"
+          style="
+            position: absolute;
+            top: 50%;
+            bottom: 50%;
+            left: 50%;
+            right: 50%;
+          "
+          >Waiting...</span
+        >
+        <canvas
+          id="canvas"
+          style="display: inline-block; width: 100%; height: 100%"
+        />
+      </div>
+    </div>
+  </van-overlay>
   <van-dialog
     v-model:show="isShowDialog"
     title="Rename File"
@@ -378,7 +425,7 @@ onBeforeUnmount(() => {
   <van-popup
     v-model:show="showLeft"
     position="left"
-    :style="{ width: '80%', height: '100%', textAlign: 'center' }"
+    :style="{ width: '70%', height: '100%', textAlign: 'center' }"
   >
     <div style="position: relative">
       <h2 style="color: var(--van-gray-5)">FILES</h2>
@@ -409,10 +456,10 @@ onBeforeUnmount(() => {
           <template #right-icon>
             <div class="fox-center">
               <van-icon
-                  size="5vh"
-                  style="color: var(--van-primary-color)"
-                  name="play-circle"
-                  @click="generateThumbnail(item)"
+                size="5vh"
+                style="color: var(--van-primary-color)"
+                name="play-circle"
+                @click="startPreviewWebSocket(item)"
               />
               <van-icon
                 size="5vh"
@@ -719,6 +766,19 @@ onBeforeUnmount(() => {
 <style>
 body {
   background-color: var(--van-background);
+}
+
+.wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.block {
+  width: auto;
+  height: 90%;
+  background-color: #fff;
 }
 
 .fox-rec-layout {

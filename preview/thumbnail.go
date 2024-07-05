@@ -81,10 +81,17 @@ func ThumbnailContext(c *gin.Context) {
 		generateImage(mediaDir + "/" + inputFolder)
 	}
 
-	sendImage(dirPath, wc, ctx)
+	go sendImage(dirPath, wc, ctx)
 
-	cancel()
-
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			cancel()
+			log.Println("Read error:", err)
+			break
+		}
+		log.Printf("Received message: %s\n", message)
+	}
 }
 
 func generateImage(inputFolder string) {
@@ -168,4 +175,5 @@ func sendImage(inputFolder string, wc *Connection, ctx context.Context) {
 			time.Sleep(time.Second / 24)
 		}
 	}
+	wc.conn.Close()
 }

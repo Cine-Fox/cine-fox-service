@@ -4,8 +4,8 @@ import { showNotify } from "vant";
 
 let websocket = null;
 let previewWebsocket = null;
-let host = "192.168.3.74";
-// let host = window.location.hostname;
+// let host = "192.168.3.74";
+let host = window.location.hostname;
 const isConnected = ref(false);
 const active = ref(-1);
 const isShow = ref(false);
@@ -338,6 +338,9 @@ const closePreview = () => {
     previewWebsocket.close();
   }
   isShowCanvas.value = false;
+  const canvas = document.getElementById("canvas");
+  const g = canvas.getContext("2d");
+  g.clearRect(0, 0, canvas.width, canvas.height);
 };
 
 const startPreviewWebSocket = (file) => {
@@ -375,18 +378,18 @@ onBeforeUnmount(() => {
   <van-overlay v-model:show="isShowCanvas" @click="closePreview" z-index="1999">
     <div class="wrapper">
       <div class="block">
-        <span
+        <div
           class="fox-font"
           v-if="!hasImg"
           style="
-            position: absolute;
-            top: 50%;
-            bottom: 50%;
-            left: 50%;
-            right: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
           "
-          >Waiting...</span
         >
+          Waiting...
+        </div>
         <canvas
           id="canvas"
           style="display: inline-block; width: 100%; height: 100%"

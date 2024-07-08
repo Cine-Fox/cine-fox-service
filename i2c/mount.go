@@ -120,6 +120,16 @@ func mountPCIe() {
 		writeLED(1)
 		mounted = true
 	}
+	auth()
+}
+
+func auth() {
+	cmd := exec.Command("chmod", "777", "/media/RAW")
+	_, err := cmd.Output()
+	if err != nil {
+		fmt.Printf("Auth: %s\n", err)
+		return
+	}
 }
 
 func checkForDevice(deviceName string) string {

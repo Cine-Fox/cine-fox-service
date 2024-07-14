@@ -65,10 +65,10 @@ const isoOptions = [
   { text: "200" },
   { text: "400" },
   { text: "800" },
+  { text: "1200" },
   { text: "1600" },
   { text: "3200" },
-  { text: "6400" },
-  { text: "12800" },
+  { text: "6400" }
 ];
 
 const shtOptions = [
